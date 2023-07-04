@@ -147,7 +147,8 @@
 // //
 
 
-
+const fs = require('fs');
+const path = require('path');
 const SftpClient = require('ssh2-sftp-client');
 
 async function saveFileToServer(localFilePath, fileName, serverConfig) {
@@ -159,9 +160,11 @@ async function saveFileToServer(localFilePath, fileName, serverConfig) {
 
     try {
         await sftp.connect(serverConfig);
-
-        const serverPath = `${serverConfig.remotePath || ''}/${fileName}`;
-        await sftp.put(localFilePath, serverPath);
+        const files = await getFilesInFolder(localFolderPath);
+        const uploadPromises = files.map(async (file) => {
+            const localFilePath = path.join(localFolderPath, file);
+            const serverPath = `${serverConfig.remotePath || ''}/${file}`;
+        await sftp.fastput(localFilePath, serverPath);
 
        
         const loggerData = {
@@ -175,7 +178,12 @@ async function saveFileToServer(localFilePath, fileName, serverConfig) {
         };
         console.log(JSON.stringify(loggerData));
 
-        return { response: true, nwcServerPath: serverPath, fileName: fileName };
+        return { response: true, nwcServerPath: serverPath, fileName: file };
+    });
+        const results = await Promise.all(uploadPromises);
+
+        return results;
+
     } catch (err) {
        
         const loggerData = {
@@ -198,21 +206,27 @@ async function saveFileToServer(localFilePath, fileName, serverConfig) {
 
 
 const serverConfig = {
-    host: '',
-    username: '',
-    password: '',
+    host: '127.0.0.1',
+    username: 'root',
+    password: 'root',
     remotePath: '', // Optional
 };
+const localFolderPath = 'D:/web-development/wp_clone';
 
-const localFilePath = 'D:\web-development\wp_clone';
-const fileName = 'test.txt';
+// const localFilePath = 'D:\web-development\wp_clone';
+// const fileName = 'test.txt';
 
-saveFileToServer(localFilePath, fileName, serverConfig)
-    .then((result) => {
-        console.log('Upload result:', result);
-    })
-    .catch((error) => {
+function getFilesInFolder(localFolderPath) {
+    return fs.promises.readdir(localFolderPath);
+}
+
+(async () => {
+    try {
+        const results = await saveFileToServer(localFolderPath, serverConfig);
+        console.log('Upload results:', results);
+    } catch (error) {
         console.error('Error occurred during upload:', error);
-    });
+    }
+})();
 
 
